@@ -114,15 +114,35 @@ app.post("/signin", async(req: Request, res: Response) => {
     }
 })
 
-app.post("/create", middleware,  (req, res) => {
+app.post("/create", middleware, async (req, res) => {
     try {
-        const data = CreateRoomSchema.safeParse(req.body);
-        if(!data.success) {
+        const parsedData = CreateRoomSchema.safeParse(req.body);
+        if(!parsedData.success) {
             res.status(400).json({
                 message: "invalid credentials"
             })
             return;
         }
+        // @ts-ignore
+        const userId = req.userId;
+
+        try {
+            const room = await prismaClient.room.create({
+                data: {
+                    slug: parsedData.data.name,
+                    adminId: userId
+                }
+            })
+    
+            res.status(200).json({
+                roomId: room.id
+            });
+        } catch(e) {
+            res.status(411).json({
+                message: "Room already exists!"
+            });
+        }
+
     } catch (error) {
         console.log("error from the create point: ", error);
         res.status(200).json({
