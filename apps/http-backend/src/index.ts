@@ -1,49 +1,133 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { middleware } from "./middleware";
-import { JWT_SECRET } from "@repo/backend-common/config"
+import { JWT_SECRET } from "@repo/backend-common/config";
 import { CreateRoomSchema, CreateUserSchema, SignInUserSchema } from "@repo/common/types"
+import { prismaClient } from "@repo/db/client";
 
 const app = express();
+app.use(express.json());
+
 app.listen(3001, () => {
     console.log("port is running on the port 3001")
 })
 
-app.post("/signup", (req, res) => {
-    const data = CreateUserSchema.safeParse(req.body);
-    if(!data.success) {
-        res.status(400).json({
-            message: "invalid credentials"
+/*
+TODO: add the bcrypt to password
+*/
+
+app.post("/signup", async (req: Request, res: Response) => {
+    try {
+        const parsedData = CreateUserSchema.safeParse(req.body);
+        if(!parsedData.success) {
+            res.status(400).json({
+                message: "invalid credentials"
+            })
+            return;
+        }
+        const { email, username, password } = parsedData.data;
+
+        const existingUser = await prismaClient.user.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    { username }
+                ]
+            }
+        });
+
+        if (existingUser) {
+            res.status(409).json({
+                message: "User already exists with given email or username"
+            });
+            return;
+        }
+
+        const user = await prismaClient.user.create({
+            data: {
+                email,
+                username,
+                password
+            }
         })
-        return;
+
+        if(user) {
+            res.status(200).json({
+                message: "User created successfully!"
+            });
+        } else {
+            res.status(200).json({
+                message: "Please try again!"
+            });
+        }
+    } catch(error) {
+        console.log("error from the signUp point: ", error);
+        res.status(200).json({
+            message: "Error in server!",
+            error: error
+        });
     }
 });
 
-app.post("/signin", (req, res) => {
-    const data = SignInUserSchema.safeParse(req.body);
-    if(!data.success) {
-        res.status(400).json({
-            message: "invalid credentials"
-        })
-        return;
-    }
-    const userId = 1;
-    const token = jwt.sign({
-        userId
-    }, JWT_SECRET);
+app.post("/signin", async(req: Request, res: Response) => {
+    try {
+        const parsedData = SignInUserSchema.safeParse(req.body);
 
-    res.json({
-        token
-    });
+        if(!parsedData.success) {
+            res.status(400).json({
+                message: "invalid credentials"
+            })
+            return;
+        }
+
+        const { email, password } = parsedData.data;
+
+        const isUser = await prismaClient.user.findFirst({
+            where: {
+                email,
+                password
+            }
+        })
+
+        if(!isUser) {
+            res.status(400).json({
+                message: "invalid credentials"
+            })
+            return;
+        }
+
+        const token = jwt.sign({
+            userId: isUser?.id
+        }, JWT_SECRET);
+
+        res.json({
+            message: "success",
+            token
+        });
+
+    } catch (error) {
+        console.log("error from the signin point: ", error);
+        res.status(200).json({
+            message: "Error in server!",
+            error: error
+        });
+    }
 })
 
 app.post("/create", middleware,  (req, res) => {
-    const data = CreateRoomSchema.safeParse(req.body);
-    if(!data.success) {
-        res.status(400).json({
-            message: "invalid credentials"
-        })
-        return;
+    try {
+        const data = CreateRoomSchema.safeParse(req.body);
+        if(!data.success) {
+            res.status(400).json({
+                message: "invalid credentials"
+            })
+            return;
+        }
+    } catch (error) {
+        console.log("error from the create point: ", error);
+        res.status(200).json({
+            message: "Error in server!",
+            error: error
+        });
     }
-
 })

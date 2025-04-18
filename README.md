@@ -2,7 +2,7 @@
 - using monorepo/turborepo
 timestamp - [{
     "ex01": "50:33",
-    "ex02": "38:00",
+    "ex02": "38:00", 01:21:47, 
     },
 ]
 
